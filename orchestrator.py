@@ -19,6 +19,7 @@ def load_env():
 config = load_env()
 API_KEY = config.get('API_KEY')
 MODEL_NAME = config.get('MODEL', 'anthropic/claude-3.5-sonnet')
+PROVIDER_NAME = config.get('PROVIDER', '9router')
 
 def save_env(provider, model, api_key):
     with open(ENV_FILE, 'w') as f:
@@ -39,8 +40,11 @@ def setup_wizard():
 def load_agents():
     with open(AGENTS_FILE, 'r', encoding='utf-8') as f: return json.load(f)
 
-def call_ai(system_prompt, user_prompt, model, api_key):
-    API_URL = "http://localhost:20128/v1/chat/completions" if "9router" in model.lower() or "local" in model.lower() else "https://openrouter.ai/api/v1/chat/completions"
+def call_ai(system_prompt, user_prompt, model, api_key, provider="9router"):
+    if provider.lower() == 'openrouter':
+        API_URL = "https://openrouter.ai/api/v1/chat/completions"
+    else:
+        API_URL = "http://localhost:20128/v1/chat/completions"
     
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     payload = {
@@ -96,7 +100,7 @@ def main():
         if user_input.lower() == 'exit': break
         
         print("\n[Manager] Menganalisis goal dan merancang tugas...")
-        response = call_ai(manager['prompt'], user_input, model, api_key)
+        response = call_ai(manager['prompt'], user_input, model, api_key, provider)
         print(f"\nMANAGER:\n{response}\n")
         
         extract_and_save_files(response)
@@ -105,7 +109,7 @@ def main():
         if "DELEGATE:coder" in response or "coder" in response.lower():
             print("\n[Orchestrator] Meneruskan tugas pembuatan kode ke CODER...")
             coder = agents['coder']
-            coder_res = call_ai(coder['prompt'], f"Berdasarkan goal: {user_input}, tuliskan kode lengkapnya dan bungkus dalam format ```lang:filename.ext ... ```", model, api_key)
+            coder_res = call_ai(coder['prompt'], f"Berdasarkan goal: {user_input}, tuliskan kode lengkapnya dan bungkus dalam format ```lang:filename.ext ... ```", model, api_key, provider)
             print(f"\nCODER:\n{coder_res}\n")
             extract_and_save_files(coder_res)
 
