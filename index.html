@@ -63,7 +63,7 @@
       </div>
 
       <div class="p-4 bg-[#111827] border-t border-gray-800">
-        <form onsubmit="handleSend(event)" class="flex space-x-3">
+        <form onsubmit="handleSend(event)" class="flex space-x-2">
           <input 
             type="text" 
             id="chat-input"
@@ -77,6 +77,15 @@
           >
             <span>Kirim</span>
             <span>⚡</span>
+          </button>
+          <button 
+            type="button" 
+            id="reset-btn"
+            class="bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition flex items-center space-x-2"
+            onclick="handleResetChat()"
+          >
+            <span>🔄</span>
+            <span>Reset Chat</span>
           </button>
         </form>
       </div>
@@ -194,6 +203,30 @@
       } finally {
         setStaffStatus('manager', 'IDLE');
         document.getElementById('send-btn').disabled = false;
+      }
+    }
+
+    async function handleResetChat() {
+      if (!confirm('Yakin reset memori percakapan? Chat sebelumnya akan hilang.')) return;
+      
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reset: true })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+          alert(data.reply);
+          document.getElementById('chat-messages').innerHTML = '';
+          document.getElementById('output-doc').innerText = 'Memori di-reset.';
+          appendMessage('Manager', data.reply, 'agent');
+        } else {
+          appendMessage('System Error', data.message, 'error');
+        }
+      } catch (err) {
+        appendMessage('System Error', 'Gagal reset chat ke dashboard local.', 'error');
       }
     }
 

@@ -3,6 +3,7 @@ import json
 import urllib.request
 import urllib.error
 import socket
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from config import CONFIG, BASE_DIR
 
@@ -13,7 +14,8 @@ AGENTS_FILE = os.path.join(BASE_DIR, "agents.json")
 ALLOWED_GET_ROUTES = ['/', '/index.html', '/api/agents']
 ALLOWED_POST_ROUTES = ['/api/chat']
 
-# In-memory simple conversation history
+# Thread-safe conversation history with Lock
+conversation_history_lock = threading.Lock()
 conversation_history = []
 
 class SecureDashboardHandler(BaseHTTPRequestHandler):
@@ -47,8 +49,8 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 reset = req.get('reset', False)
                 
                 if reset:
-                    global conversation_history
-                    conversation_history = []
+                    with conversation_history_lock:
+                        conversation_history.clear()
                     self.send_json({"status": "success", "reply": "Memori percakapan di-reset."})
                     return
 
@@ -61,12 +63,19 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                     
                 agent_data = agents.get(agent_role, agents.get('manager'))
                 
-                # Masukkan ke history
-                conversation_history.append({"role": "user", "content": prompt})
+                # Thread-safe: Add user message to history only after API call verification
+                api_error = None
                 
-                # Batasi history maksimal 10 pesan terakhir agar tidak overflow
-                messages = [{"role": "system", "content": agent_data['prompt']}] + conversation_history[-10:]
-
+                try:
+                    # Constraint 1: Append message AFTER successful API verification
+                    with conversation_history_lock:
+                        conversation_history.append({"role": "user", "content": prompt})
+                        messages = [{"role": "system", "content": agent_data['prompt']}] + conversation_history[-10:]
+                except Exception as e:
+                    api_error = str(e)
+                    with conversation_history_lock:
+                        conversation_history.append({"role": "user", "content": prompt})
+                
                 api_payload = {
                     "model": CONFIG["MODEL"],
                     "messages": messages,
@@ -84,20 +93,34 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 )
                 
                 # Timeout 30 detik agar server tidak hang
+                bot_reply = None
+                res = None
                 try:
-                    with urllib.request.urlopen(api_req, timeout=30) as res:
-                        res_json = json.loads(res.read().decode('utf-8'))
-                        bot_reply = res_json['choices'][0]['message']['content']
-                        
-                        # Simpan balasan ke history
+                    res = urllib.request.urlopen(api_req, timeout=30)
+                    res_json = json.loads(res.read().decode('utf-8'))
+                    bot_reply = res_json['choices'][0]['message']['content']
+                    
+                    # Thread-safe: Append assistant reply only on success
+                    with conversation_history_lock:
                         conversation_history.append({"role": "assistant", "content": bot_reply})
-                        
-                        out = {"status": "success", "reply": bot_reply, "agent": agent_role}
+                    
+                    out = {"status": "success", "reply": bot_reply, "agent": agent_role}
                 except urllib.error.URLError as e:
-                    out = {"status": "error", "message": f"Koneksi ke Gateway ({CONFIG['API_URL']}) gagal: {str(e)}"}
+                    api_error = f"Koneksi ke Gateway ({CONFIG['API_URL']}) gagal: {str(e)}"
+                    with conversation_history_lock:
+                        conversation_history.append({"role": "user", "content": prompt})
                 except socket.timeout:
-                    out = {"status": "error", "message": "Gateway timeout (30s). 9Router terlalu lama merespons."}
-
+                    api_error = "Gateway timeout (30s). 9Router terlalu lama merespons."
+                    with conversation_history_lock:
+                        conversation_history.append({"role": "user", "content": prompt})
+                except Exception as e:
+                    api_error = f"Server Error: {str(e)}"
+                    with conversation_history_lock:
+                        conversation_history.append({"role": "user", "content": prompt})
+                
+                if api_error:
+                    out = {"status": "error", "message": api_error}
+                
                 self.send_json(out)
 
             except Exception as e:

@@ -12,20 +12,10 @@ MODEL_NAME = CONFIG.get('MODEL', 'anthropic/claude-3.5-sonnet')
 PROVIDER_NAME = CONFIG.get('PROVIDER', '9router')
 
 def save_env(provider, model, api_key):
-    with open(ENV_FILE, 'w') as f:
+    with open(ENV_FILE, 'w', encoding='utf-8') as f:
         f.write(f"PROVIDER={provider}\n")
         f.write(f"MODEL={model}\n")
         f.write(f"API_KEY={api_key}\n")
-
-def setup_wizard():
-    print("=== ORCHESTRATOR CONFIGURATION ===")
-    provider = input("Jenis Provider (contoh: 9router / openrouter / openai) [9router]: ").strip() or "9router"
-    model = input("Isi Model (contoh: anthropic/claude-3.5-sonnet) [anthropic/claude-3.5-sonnet]: ").strip() or "anthropic/claude-3.5-sonnet"
-    api_key = input("API Key (contoh: sk-or-v1-...): ").strip()
-    
-    save_env(provider, model, api_key)
-    print("[OK] Konfigurasi tersimpan ke .env!\n")
-    return provider, model, api_key
 
 def load_agents():
     with open(AGENTS_FILE, 'r', encoding='utf-8') as f: return json.load(f)
@@ -40,8 +30,14 @@ def call_ai(system_prompt, user_prompt, model, api_key, provider="9router"):
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": system_prompt + "\nIf you generate code or project files, wrap them in markdown code blocks with the filename like ```python:main.py\nprint('hello')\n``` so the system can automatically save them to disk."},
-            {"role": "user", "content": user_prompt}
+            {
+"role": "system", 
+"content": system_prompt + "\n**CRITICAL EMITTER:** You MUST output responses as valid JSON. Do NOT wrap in markdown fences. Example valid output: {\\"delegation_action\\": \\"progress\\", \\"subtasks\\": [...], \\"notes\\": \"...\\"} or {\\"delegation_action\\": \\"complete\\", \\"final_response\\": \"...\\"}. Unless explicitly delegated, your final_response field contains the full answer directly – do not prefix or add meta."
+            },
+            {
+"role": "user", 
+"content": user_prompt
+            }
         ],
         "temperature": 0.7
     }
@@ -78,7 +74,7 @@ def main():
         model = config.get('MODEL', 'anthropic/claude-3.5-sonnet')
         api_key = config.get('API_KEY')
         print(f"[INFO] Loaded config -> Provider: {provider} | Model: {model}\n")
-
+    
     agents = load_agents()
     manager = agents['manager']
     
@@ -95,13 +91,33 @@ def main():
         
         extract_and_save_files(response)
         
-        # Cek apakah manager mendelegasikan ke coder
-        if "DELEGATE:coder" in response or "coder" in response.lower():
-            print("\n[Orchestrator] Meneruskan tugas pembuatan kode ke CODER...")
-            coder = agents['coder']
-            coder_res = call_ai(coder['prompt'], f"Berdasarkan goal: {user_input}, tuliskan kode lengkapnya dan bungkus dalam format ```lang:filename.ext ... ```", model, api_key, provider)
-            print(f"\nCODER:\n{coder_res}\n")
-            extract_and_save_files(coder_res)
+        # Cek apakah manager mendelegasikan ke coder (JSON field check)
+        try:
+            json_start = response.find('{')
+            if json_start != -1:
+                json_response_str = '{' + response[json_start:]
+                manager_json = json.loads(json_response_str)
+                
+                # If manager explicitly signals delegation
+                if manager_json.get('delegation_action') == 'delegate' or manager_json.get('subtasks'):
+                    print("\n[Orchestrator] Meneruskan tugas pembuatan kode ke CODER...")
+                    coder = agents['coder']
+                    coder_res = call_ai(coder['prompt'], f"Berdasarkan goal: {user_input}, tuliskan kode lengkapnya dan bungkus dalam format ```lang:filename.ext ... ```", model, api_key, provider)
+                    print(f"\nCODER:\n{coder_res}\n")
+                    extract_and_save_files(coder_res)
+                else:
+                    # No delegation, just show manager's text
+                    pass
+        except json.JSONDecodeError:
+            # Plain text fallback, parse manually for "DELEGATE:" token
+            if "DELEGATE:coder" in response or "coder" in response.lower():
+                print("\n[Orchestrator] Meneruskan tugas pembuatan kode ke CODER...")
+                coder = agents['coder']
+                coder_res = call_ai(coder['prompt'], f"Berdasarkan goal: {user_input}, tuliskan kode lengkapnya dan bungkus dalam format ```lang:filename.ext ... ```", model, api_key, provider)
+                print(f"\nCODER:\n{coder_res}\n")
+                extract_and_save_files(coder_res)
+            else:
+                pass  # Plain text output
 
 if __name__ == '__main__':
     main()
