@@ -105,18 +105,36 @@
 
     function renderStaff() {
       const grid = document.getElementById('staff-grid');
-      grid.innerHTML = employees.map(emp => `
-        <div id="card-${emp.id}" class="bg-[#1e293b]/70 border border-gray-700/60 rounded-xl p-3 flex flex-col items-center text-center transition-all duration-300">
-          <div id="avatar-${emp.id}" class="w-12 h-12 rounded-xl bg-gradient-to-br ${emp.bg} flex items-center justify-center text-2xl mb-2 shadow-md">
-            ${emp.icon}
-          </div>
-          <div class="text-xs font-bold text-white">${emp.name}</div>
-          <div class="text-[10px] text-gray-400 mb-2">${emp.role}</div>
-          <span id="badge-${emp.id}" class="text-[9px] code-font px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
-            IDLE
-          </span>
-        </div>
-      `).join('');
+      grid.textContent = '';
+      employees.forEach(emp => {
+        const div = document.createElement('div');
+        div.id = `card-${emp.id}`;
+        div.className = "bg-[#1e293b]/70 border border-gray-700/60 rounded-xl p-3 flex flex-col items-center text-center transition-all duration-300";
+        
+        const avatar = document.createElement('div');
+        avatar.id = `avatar-${emp.id}`;
+        avatar.className = `w-12 h-12 rounded-xl bg-gradient-to-br ${emp.bg} flex items-center justify-center text-2xl mb-2 shadow-md`;
+        avatar.textContent = emp.icon;
+
+        const name = document.createElement('div');
+        name.className = "text-xs font-bold text-white";
+        name.textContent = emp.name;
+
+        const role = document.createElement('div');
+        role.className = "text-[10px] text-gray-400 mb-2";
+        role.textContent = emp.role;
+
+        const badge = document.createElement('span');
+        badge.id = `badge-${emp.id}`;
+        badge.className = "text-[9px] code-font px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700";
+        badge.textContent = 'IDLE';
+
+        div.appendChild(avatar);
+        div.appendChild(name);
+        div.appendChild(role);
+        div.appendChild(badge);
+        grid.appendChild(div);
+      });
     }
 
     function setStaffStatus(id, status) {
@@ -184,21 +202,46 @@
       const div = document.createElement('div');
       div.className = 'flex items-start space-x-3';
       
-      let avatarHtml = '<div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white">👑</div>';
+      const avatar = document.createElement('div');
+      avatar.className = 'w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white';
+      
       let bubbleBg = 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-100';
       let titleColor = 'text-emerald-400';
+      let avatarIcon = '👑';
+      avatar.classList.add('bg-emerald-600');
 
       if (type === 'agent') {
-        avatarHtml = '<div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-bold text-white">👔</div>';
+        avatar.classList.remove('bg-emerald-600');
+        avatar.classList.add('bg-blue-600');
+        avatarIcon = '👔';
         bubbleBg = 'bg-[#1e293b]/90 border border-gray-700 text-gray-200';
         titleColor = 'text-blue-400';
       } else if (type === 'error') {
-        avatarHtml = '<div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-xs font-bold text-white">⚠️</div>';
+        avatar.classList.remove('bg-emerald-600');
+        avatar.classList.add('bg-red-600');
+        avatarIcon = '⚠️';
         bubbleBg = 'bg-red-950/40 border border-red-800 text-red-200';
         titleColor = 'text-red-400';
       }
+      avatar.textContent = avatarIcon;
 
-      div.innerHTML = avatarHtml + '<div class="' + bubbleBg + ' rounded-xl p-3.5 max-w-xl text-sm leading-relaxed"><div class="font-bold ' + titleColor + ' text-xs mb-1">' + sender + '</div><div class="whitespace-pre-wrap">' + text + '</div></div>';
+      const bubble = document.createElement('div');
+      bubble.className = bubbleBg + ' rounded-xl p-3.5 max-w-xl text-sm leading-relaxed';
+
+      const title = document.createElement('div');
+      title.className = 'font-bold ' + titleColor + ' text-xs mb-1';
+      title.textContent = sender;
+
+      const content = document.createElement('div');
+      content.className = 'whitespace-pre-wrap';
+      content.textContent = text;
+
+      bubble.appendChild(title);
+      bubble.appendChild(content);
+
+      div.appendChild(avatar);
+      div.appendChild(bubble);
+
       container.appendChild(div);
       container.scrollTop = container.scrollHeight;
     }
