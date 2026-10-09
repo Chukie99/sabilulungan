@@ -4,22 +4,12 @@ API_URL = 'http://localhost:20128/v1/chat/completions'
 AGENTS_FILE = 'agents.json'
 ENV_FILE = ".env"
 
-def load_env():
-    config = {}
-    if os.path.exists(ENV_FILE):
-        with open(ENV_FILE, 'r', encoding='utf-8') as f:
-            for line in f:
-                clean_line = line.strip()
-                if '=' in clean_line and not clean_line.startswith('#'):
-                    k, v = clean_line.split('=', 1)
-                    config[k.strip()] = v.strip()
-    return config
+from config import CONFIG
 
 # Load config once
-config = load_env()
-API_KEY = config.get('API_KEY')
-MODEL_NAME = config.get('MODEL', 'anthropic/claude-3.5-sonnet')
-PROVIDER_NAME = config.get('PROVIDER', '9router')
+API_KEY = CONFIG.get('API_KEY')
+MODEL_NAME = CONFIG.get('MODEL', 'anthropic/claude-3.5-sonnet')
+PROVIDER_NAME = CONFIG.get('PROVIDER', '9router')
 
 def save_env(provider, model, api_key):
     with open(ENV_FILE, 'w') as f:

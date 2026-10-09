@@ -6,10 +6,12 @@ import urllib.request
 import urllib.error
 import threading
 
+from config import CONFIG
+
 API_URL = "http://localhost:20128/v1/chat/completions"
 AGENTS_FILE = "agents.json"
-API_KEY = os.environ.get("OPENROUTER_API_KEY", "your-api-key-here")
-MODEL_NAME = "anthropic/claude-3.5-sonnet"
+API_KEY = CONFIG.get('OPENROUTER_API_KEY', 'your-api-key-here')
+MODEL_NAME = CONFIG.get('MODEL', 'anthropic/claude-3.5-sonnet')
 
 # ANSI TrueColor & Modern Palettes
 C_RESET = "\033[0m"
