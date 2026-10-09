@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HQ Digital Agency - AI Staff Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0b0f17; color: #e2e8f0; }
+    .code-font { font-family: 'JetBrains Mono', monospace; }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6)); }
+      50% { opacity: 0.5; filter: drop-shadow(0 0 2px rgba(16, 185, 129, 0.2)); }
+    }
+    .status-working { animation: pulse-glow 1.2s infinite ease-in-out; }
+    @keyframes bobbing {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+    }
+    .avatar-working { animation: bobbing 0.6s infinite ease-in-out; }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+  <header class="bg-[#111827] border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-3.5 h-3.5 rounded-full bg-emerald-500 status-working"></div>
+      <h1 class="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+        <span>🏢 VIRTUAL OFFICE HQ</span>
+        <span class="text-xs bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded code-font">9ROUTER READY</span>
+      </h1>
+    </div>
+    <div class="text-xs text-gray-400 code-font">
+      Active Squad: <span class="text-emerald-400">6 Specialists</span> | Owner: <span class="text-white font-semibold">SOPIAN</span>
+    </div>
+  </header>
+
+  <section class="bg-[#0f172a] border-b border-gray-800 p-4">
+    <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center justify-between">
+      <span>Meja Karyawan (Virtual Desks)</span>
+      <span class="text-[11px] text-gray-500">Lampu hijau menyala pas mereka lagi ngerjain tugas</span>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3" id="staff-grid"></div>
+  </section>
+
+  <div class="flex-1 flex overflow-hidden">
+    <div class="flex-1 flex flex-col bg-[#0b0f17] border-r border-gray-800">
+      <div class="px-5 py-3 border-b border-gray-800 flex items-center justify-between bg-[#0e1422]">
+        <div class="text-sm font-semibold text-gray-300 flex items-center gap-2">
+          <span>💬 Ruang Rapat Bos & Tim</span>
+          <span class="text-xs text-gray-500">Perintah lu diterima oleh Manager dan diteruskan ke tim</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-5 space-y-4" id="chat-messages">
+        <div class="flex items-start space-x-3">
+          <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs">👔</div>
+          <div class="bg-gray-800/80 border border-gray-700/60 rounded-xl p-3.5 max-w-xl text-sm leading-relaxed">
+            <div class="font-bold text-blue-400 text-xs mb-1">Manager</div>
+            Halo Bos Sopian! Semua tim (Designer, Coder, Copywriter, Marketing, SEO) udah standby di mejanya masing-masing. Proyek apa yang mau kita eksekusi hari ini? Kasih instruksi lu di bawah!
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-[#111827] border-t border-gray-800">
+        <form onsubmit="handleSend(event)" class="flex space-x-3">
+          <input 
+            type="text" 
+            id="chat-input"
+            placeholder="Ketik instruksi bos (contoh: 'Gue mau bikin aplikasi trading sederhana' atau 'Buat rencana produk digital')..." 
+            class="flex-1 bg-[#1a2234] border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 text-white placeholder-gray-500"
+          >
+          <button 
+            type="submit" 
+            id="send-btn"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-3 rounded-lg text-sm transition flex items-center space-x-2"
+          >
+            <span>Kirim</span>
+            <span>⚡</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="w-96 bg-[#0e1422] flex flex-col border-l border-gray-800">
+      <div class="px-5 py-3 border-b border-gray-800 bg-[#111827] flex items-center justify-between">
+        <span class="text-sm font-semibold text-gray-300">📋 Dokumen & Eksekusi</span>
+        <button onclick="copyOutput()" class="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-gray-300">Salin</button>
+      </div>
+      <div class="flex-1 p-4 overflow-y-auto">
+        <div id="output-doc" class="text-xs code-font text-gray-300 whitespace-pre-wrap leading-relaxed">Belum ada berkas. Masukan instruksi pertama lu di chat untuk melihat dokumen kerja tim.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const employees = [
+      { id: 'manager', name: 'Manager', role: 'Head of Project', icon: '👔', bg: 'from-blue-600 to-indigo-700' },
+      { id: 'designer', name: 'Designer', role: 'UI/UX Visual', icon: '🎨', bg: 'from-pink-600 to-rose-700' },
+      { id: 'coder', name: 'Coder', role: 'Tech Architect', icon: '💻', bg: 'from-cyan-600 to-teal-700' },
+      { id: 'copywriter', name: 'Copywriter', role: 'Direct Response', icon: '✍️', bg: 'from-amber-600 to-orange-700' },
+      { id: 'marketing', name: 'Marketing', role: 'Growth Hacker', icon: '🚀', bg: 'from-purple-600 to-violet-700' },
+      { id: 'seo', name: 'SEO Unit', role: 'Search Engine', icon: '🔍', bg: 'from-emerald-600 to-green-700' }
+    ];
+
+    function renderStaff() {
+      const grid = document.getElementById('staff-grid');
+      grid.innerHTML = employees.map(emp => `
+        <div id="card-${emp.id}" class="bg-[#1e293b]/70 border border-gray-700/60 rounded-xl p-3 flex flex-col items-center text-center transition-all duration-300">
+          <div id="avatar-${emp.id}" class="w-12 h-12 rounded-xl bg-gradient-to-br ${emp.bg} flex items-center justify-center text-2xl mb-2 shadow-md">
+            ${emp.icon}
+          </div>
+          <div class="text-xs font-bold text-white">${emp.name}</div>
+          <div class="text-[10px] text-gray-400 mb-2">${emp.role}</div>
+          <span id="badge-${emp.id}" class="text-[9px] code-font px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
+            IDLE
+          </span>
+        </div>
+      `).join('');
+    }
+
+    function setStaffStatus(id, status) {
+      const card = document.getElementById('card-' + id);
+      const badge = document.getElementById('badge-' + id);
+      const avatar = document.getElementById('avatar-' + id);
+      if (!card || !badge) return;
+
+      if (status === 'WORKING') {
+        card.classList.add('border-emerald-500', 'bg-emerald-950/20');
+        badge.className = 'text-[9px] code-font px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 border border-emerald-500/50 status-working font-bold';
+        badge.innerText = 'WORKING ⚡';
+        avatar.classList.add('avatar-working');
+      } else {
+        card.classList.remove('border-emerald-500', 'bg-emerald-950/20');
+        badge.className = 'text-[9px] code-font px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700';
+        badge.innerText = 'IDLE';
+        avatar.classList.remove('avatar-working');
+      }
+    }
+
+    async function handleSend(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendMessage('Bos Sopian', text, 'user');
+      input.value = '';
+      
+      setStaffStatus('manager', 'WORKING');
+      document.getElementById('send-btn').disabled = true;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent: 'manager', message: text })
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+          appendMessage('Manager', data.reply, 'agent');
+          document.getElementById('output-doc').innerText = data.reply;
+
+          employees.forEach(emp => {
+            if (emp.id !== 'manager' && data.reply.toLowerCase().includes(emp.name.toLowerCase())) {
+              setStaffStatus(emp.id, 'WORKING');
+              setTimeout(() => setStaffStatus(emp.id, 'IDLE'), 6000);
+            }
+          });
+        } else {
+          appendMessage('System Error', data.message, 'error');
+        }
+      } catch (err) {
+        appendMessage('System Error', 'Gagal konek ke dashboard local.', 'error');
+      } finally {
+        setStaffStatus('manager', 'IDLE');
+        document.getElementById('send-btn').disabled = false;
+      }
+    }
+
+    function appendMessage(sender, text, type) {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'flex items-start space-x-3';
+      
+      let avatarHtml = '<div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-xs font-bold text-white">👑</div>';
+      let bubbleBg = 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-100';
+      let titleColor = 'text-emerald-400';
+
+      if (type === 'agent') {
+        avatarHtml = '<div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-bold text-white">👔</div>';
+        bubbleBg = 'bg-[#1e293b]/90 border border-gray-700 text-gray-200';
+        titleColor = 'text-blue-400';
+      } else if (type === 'error') {
+        avatarHtml = '<div class="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-xs font-bold text-white">⚠️</div>';
+        bubbleBg = 'bg-red-950/40 border border-red-800 text-red-200';
+        titleColor = 'text-red-400';
+      }
+
+      div.innerHTML = avatarHtml + '<div class="' + bubbleBg + ' rounded-xl p-3.5 max-w-xl text-sm leading-relaxed"><div class="font-bold ' + titleColor + ' text-xs mb-1">' + sender + '</div><div class="whitespace-pre-wrap">' + text + '</div></div>';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function copyOutput() {
+      const text = document.getElementById('output-doc').innerText;
+      navigator.clipboard.writeText(text);
+      alert('Teks berhasil disalin!');
+    }
+
+    renderStaff();
+  </script>
+</body>
+</html>
