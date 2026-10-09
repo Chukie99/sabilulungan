@@ -36,6 +36,17 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Access Denied.")
 
     def do_POST(self):
+        # SECURITY: Check Origin/Host
+        origin = self.headers.get('Origin')
+        host = self.headers.get('Host')
+        
+        # Whitelist: Only accept from 127.0.0.1:5050 or localhost:5050
+        if host not in ['127.0.0.1:5050', 'localhost:5050']:
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"Forbidden: Invalid Host")
+            return
+
         route = self.get_route()
         
         if route == '/api/chat':
