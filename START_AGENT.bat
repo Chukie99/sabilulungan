@@ -1,4 +1,5 @@
 @echo off
-cd /d %%~dp0
-python multi_agent.py
+cd /d "%~dp0"
+echo [STARTING] Agent CLI...
+python orchestrator.py
 pause

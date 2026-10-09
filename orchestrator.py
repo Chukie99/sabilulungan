@@ -1,29 +1,24 @@
 import os, sys, json, urllib.request
-if os.path.exists('.env'):
-    with open('.env', 'r') as f:
-        for line in f:
-            if '=' in line:
-                k, v = line.strip().split('=', 1)
-                os.environ[k] = v
 
 API_URL = 'http://localhost:20128/v1/chat/completions'
 AGENTS_FILE = 'agents.json'
-API_KEY = os.environ.get('API_KEY')
-MODEL_NAME = os.environ.get('MODEL')
-
-
 ENV_FILE = ".env"
-AGENTS_FILE = "agents.json"
 
 def load_env():
     config = {}
     if os.path.exists(ENV_FILE):
-        with open(ENV_FILE, 'r') as f:
+        with open(ENV_FILE, 'r', encoding='utf-8') as f:
             for line in f:
-                if '=' in line and not line.startswith('#'):
-                    k, v = line.strip().split('=', 1)
-                    config[k] = v
+                clean_line = line.strip()
+                if '=' in clean_line and not clean_line.startswith('#'):
+                    k, v = clean_line.split('=', 1)
+                    config[k.strip()] = v.strip()
     return config
+
+# Load config once
+config = load_env()
+API_KEY = config.get('API_KEY')
+MODEL_NAME = config.get('MODEL', 'anthropic/claude-3.5-sonnet')
 
 def save_env(provider, model, api_key):
     with open(ENV_FILE, 'w') as f:
