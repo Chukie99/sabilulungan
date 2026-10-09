@@ -108,7 +108,9 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 res = None
                 try:
                     res = urllib.request.urlopen(api_req, timeout=30)
-                    res_json = json.loads(res.read().decode('utf-8'))
+                    response_text = res.read().decode('utf-8')
+                    # Robust parsing to handle potential extra data (e.g. trailing newlines/garbage)
+                    res_json, idx = json.JSONDecoder().raw_decode(response_text)
                     bot_reply = res_json['choices'][0]['message']['content']
                     
                     # Thread-safe: Append assistant reply only on success
@@ -116,7 +118,7 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                         conversation_history.append({"role": "assistant", "content": bot_reply})
                     
                     out = {"status": "success", "reply": bot_reply, "agent": agent_role}
-                except urllib.error.URLError as e:
+                except (urllib.error.URLError, json.JSONDecodeError) as e:
                     api_error = f"Koneksi ke Gateway ({CONFIG['API_URL']}) gagal: {str(e)}"
                     with conversation_history_lock:
                         conversation_history.append({"role": "user", "content": prompt})
