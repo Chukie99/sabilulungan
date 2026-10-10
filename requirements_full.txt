@@ -1,0 +1,32 @@
+# requirements.txt untuk Sabilulungan Agent Framework
+# Semua libraries kecil & ringan untuk CPU-only dengan 4GB RAM
+
+# Framework & Core
+requests>=2.28.0
+python-dotenv>=1.0.0
+urllib3>=1.26.0
+
+# Agent Management & Tooling
+LightAgent @ git+https://github.com/wanxingai/LightAgent.git
+Qwen2.5-Coder-1.5B-Instruct @ git+https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/tree/main
+
+# Data & Analytics
+faster-whisper>=1.0.0
+scrapling>=0.1.0
+yfinance>=0.10.0
+polymarket>=0.1.0
+
+# Vector Storage & Memory
+lancedb>=0.2.0
+
+# Audio & TTS (Pilihan)
+piper @ https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_windows_amd64.tar.gz
+kokoro-onnx @ https://github.com/thewh1teagle/kokoro-onnx/releases/download/v0.19/kokoro-onnx-v0.19.tar.gz
+
+# Security & Utilities
+shlex
+requests==2.28.0
+
+# Development & Testing
+testfixtures
+pytest
