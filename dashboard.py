@@ -46,6 +46,13 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Forbidden: Invalid Host")
             return
+            
+        # CSRF Protection: Verify Origin matches Host
+        if origin and not (origin.endswith('127.0.0.1:5050') or origin.endswith('localhost:5050')):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b"Forbidden: Cross-Origin Request Blocked")
+            return
 
         route = self.get_route()
         
@@ -121,15 +128,18 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 except (urllib.error.URLError, json.JSONDecodeError) as e:
                     api_error = f"Koneksi ke Gateway ({CONFIG['API_URL']}) gagal: {str(e)}"
                     with conversation_history_lock:
-                        conversation_history.append({"role": "user", "content": prompt})
+                        if conversation_history and conversation_history[-1].get("role") == "user":
+                            conversation_history.pop()
                 except socket.timeout:
                     api_error = "Gateway timeout (30s). 9Router terlalu lama merespons."
                     with conversation_history_lock:
-                        conversation_history.append({"role": "user", "content": prompt})
+                        if conversation_history and conversation_history[-1].get("role") == "user":
+                            conversation_history.pop()
                 except Exception as e:
                     api_error = f"Server Error: {str(e)}"
                     with conversation_history_lock:
-                        conversation_history.append({"role": "user", "content": prompt})
+                        if conversation_history and conversation_history[-1].get("role") == "user":
+                            conversation_history.pop()
                 
                 if api_error:
                     out = {"status": "error", "message": api_error}
