@@ -48,7 +48,7 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
             return
             
         # CSRF Protection: Verify Origin matches Host
-        if origin and not (origin.endswith('127.0.0.1:5050') or origin.endswith('localhost:5050')):
+        if origin and not (origin == 'http://127.0.0.1:5050' or origin == 'http://localhost:5050'):
             self.send_response(403)
             self.end_headers()
             self.wfile.write(b"Forbidden: Cross-Origin Request Blocked")
