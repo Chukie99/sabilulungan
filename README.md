@@ -51,6 +51,13 @@ memakai kuota model dan berjalan maksimal sekitar 10 menit ditambah waktu
 penutupan panggilan model. Jangan merge berdasarkan tes tiruan saja jika
 penerimaan koneksi live belum lolos.
 
+Tes memori dikirim langsung ke coder sebagai tugas terpisah supaya tidak
+bergantung pada kelengkapan instruksi yang diteruskan Manager. `memory`
+memerlukan bukti tool `remember` sukses dan isi persis yang diminta.
+`persistence` memeriksa tugas/aktivitas setelah runtime dibuka ulang;
+`memory_persistence` khusus memeriksa memori tersimpan. Progres menampilkan
+agen dan nama aksi tanpa isi respons gateway atau API key.
+
 `python -m unittest discover -s tests -v`
 
 Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna harus diuji dengan konfigurasi pengguna; test suite tidak mengklaim koneksi tersebut sudah diuji.

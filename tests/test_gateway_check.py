@@ -8,10 +8,11 @@ class AcceptanceTests(unittest.TestCase):
             {'action': 'delegate', 'agent': 'coder', 'instructions': 'Test'},
             {'action': 'write_file', 'path': 'acceptance.txt', 'content': 'SABILULUNGAN_OK'},
             {'action': 'read_file', 'path': 'acceptance.txt'},
-            {'action': 'remember', 'content': 'SABILULUNGAN_ACCEPTANCE'},
             {'action': 'complete', 'reply': 'Selesai'},
             {'action': 'read_file', 'path': 'acceptance.txt'},
             {'action': 'complete', 'reply': 'Terverifikasi'},
+            {'action': 'remember', 'content': 'SABILULUNGAN_ACCEPTANCE'},
+            {'action': 'complete', 'reply': 'Memori tersimpan'},
         ])
         self.assertTrue(all(check(lambda m: next(actions), timeout=5).values()))
 
@@ -20,3 +21,5 @@ class AcceptanceTests(unittest.TestCase):
         self.assertFalse(result['file_content'])
         self.assertFalse(result['delegation'])
         self.assertFalse(result['memory'])
+        self.assertTrue(result['persistence'])
+        self.assertFalse(result['memory_persistence'])
