@@ -1,31 +1,48 @@
-# Sabilulungan (Digital Staff System)
+# Sabilulungan — Staf AI v3
 
-Framework multi-agen kolaboratif berbasis Python & Local LLM Gateway (9Router / OpenRouter) dengan antarmuka dashboard yang aman.
+Workspace staf AI lokal dengan model melalui 9Router/OpenRouter. Beri tugas lewat dashboard; Manager dapat mendelegasikan ke spesialis, membaca sumber web, membuat file, dan memeriksa hasil. Progres berasal dari aktivitas runtime, bukan animasi kerja palsu.
 
-## Struktur Project
-- `config.py`: Pengelola konfigurasi dan `.env` terpusat.
-- `dashboard.py`: Secure HTTP server dengan pembatasan rute dan proteksi *Origin/Host*.
-- `orchestrator.py`: CLI multi-agen dan pipeline delegasi tugas.
-- `multi_agent.py`: Interface alternatif interaktif.
-- `index.html`: Dashboard UI (XSS-mitigated, with chat & reset support).
-- `agents.json`: Profil agen (Manager, Coder, Designer, dsb).
+## Menjalankan di Windows
 
-## Instalasi & Cara Menjalankan
+1. Buka terminal di folder project dan jalankan `pip install -r requirements.txt`.
+2. Salin `.env.example` ke `.env`, lalu atur `API_KEY`, `MODEL`, dan `API_URL` sesuai gateway lu.
+3. Klik `START_DASHBOARD.bat`, atau jalankan `python dashboard.py`.
+4. Buka http://127.0.0.1:5050. Pilih Manager, tulis tugas, lalu klik **Kerjakan tugas**.
 
-1. **Install Dependensi:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Konfigurasi Environment (.env):**
-   Salin file `.env.example` menjadi `.env`, lalu isi konfigurasi API Key dan Provider Anda:
-   ```env
-   PROVIDER=9router
-   API_KEY=your_api_key_here
-   MODEL=gpt-4o
-   ```
-3. **Menjalankan Dashboard:**
-   Klik dua kali pada `START_DASHBOARD.bat` atau jalankan via terminal:
-   ```bash
-   python dashboard.py
-   ```
-   Akses di browser: `http://localhost:5050`
+Contoh tugas:
+
+> Delegasikan ke copywriter untuk membuat 5 skrip reels horor Bahasa Indonesia, durasi sekitar 45 detik. Simpan tiap skrip sebagai file teks berbeda. Baca hasilnya lalu periksa apakah hook dan penutupnya jelas.
+
+CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan jalankan CLI dan dashboard bersamaan dalam folder yang sama; keduanya memiliki worker dan memakai database yang sama.
+
+## Fungsi yang tersedia
+
+- Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
+- Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.
+- Delegasi berantai maksimal 3 tingkat dengan total maksimal 24 langkah per tugas. Spesialis mengembalikan hasil ke agen pemberi tugas. Eksekusi serial untuk menghemat RAM dan mencegah benturan file.
+- Tools `list_files`, `read_file`, `write_file`, `remember`, `delegate`, `read_url`, dan `run_python`.
+- File tools dibatasi ke `workspace/`; file lama tidak ditimpa. Download file melalui dashboard.
+- Membaca URL HTTPS publik sebagai teks, dengan batas ukuran, timeout, validasi DNS dan redirect. Tidak mendukung halaman yang memerlukan JavaScript atau login.
+- Eksekusi Python setelah lu menyetujui kode persisnya di dashboard. Output/exit code dikembalikan ke agen, timeout 30 detik. Penolakan dikembalikan sebagai hasil tool agar agen dapat mencari alternatif.
+- Rutinitas berulang berdasarkan interval menit. Simpan/jeda/aktifkan lewat dashboard. Jika aplikasi mati, jadwal yang terlewat dijalankan sekali setelah aktif; tidak menumpuk backlog.
+- Skill berbentuk file Markdown di `workspace/skills/`. Minta agen menulis prosedur yang sudah berhasil ke `skills/nama.md`; daftar skill masuk ke konteks agen dan bisa dibaca dengan tool `read_file`.
+- SQLite menyimpan tugas, aktivitas, memori, persetujuan, dan rutinitas. Tugas yang terputus ditandai `interrupted`, tidak diputar ulang otomatis.
+- Hentikan tugas melalui dashboard. Panggilan model yang sedang berjalan berhenti setelah respons/timeout; kode Python yang sedang berjalan dihentikan pada pemeriksaan berikutnya.
+
+## Batas yang perlu dipahami
+
+Ini implementasi lokal fungsi inti, belum setara seluruh produk Grok Bot. Belum ada browser visual dengan klik/login, komputer cloud, aplikasi mobile, konektor akun, voice, grup chat, atau beberapa agen yang berjalan paralel. Model harus mengikuti protokol JSON; model yang tidak mengikuti protokol akan menghasilkan tugas gagal dengan pesan error, bukan laporan sukses palsu.
+
+`run_python` berjalan langsung pada PC host, **bukan sandbox OS**. Kode dapat mengakses file, jaringan, dan menjalankan program dengan hak pengguna. Periksa setiap kode sebelum menyetujui. API key tidak diteruskan lewat environment subprocess, tetapi ini tidak mencegah kode membaca file konfigurasi pada PC. Timeout menghentikan proses Python utama; proses anak yang dibuat oleh kode tidak dijamin ikut berhenti. Rutinitas tidak dapat melewati persetujuan ini.
+
+Semua agen berbagi workspace. Memori spesialis yang disimpan eksplisit dan aktivitas delegasinya bertahan; konteks percakapan otomatis diambil dari tugas selesai yang dimiliki agen tersebut. Reset memori mengarsipkan konteks tugas selesai dan menghapus memori eksplisit, tanpa menghapus file atau audit trail. Reset diblokir selama ada tugas aktif.
+
+PC dan aplikasi harus hidup agar tugas/rutinitas berjalan. Server hanya mendengarkan localhost; tidak dirancang untuk diekspos ke internet.
+
+## Pengujian
+
+`python -m unittest discover -s tests -v`
+
+Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna harus diuji dengan konfigurasi pengguna; test suite tidak mengklaim koneksi tersebut sudah diuji.
+
+Dependensi transkripsi/scraping lama ada di `requirements_full.txt` dan tidak diperlukan untuk dashboard inti.

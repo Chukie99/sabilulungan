@@ -1,178 +1,135 @@
-import os
 import json
-import urllib.request
-import urllib.error
-import socket
-import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from config import CONFIG, BASE_DIR
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlsplit, parse_qs
+from pathlib import Path
+from config import BASE_DIR, CONFIG
+from runtime import Runtime
 
 PORT = 5050
-AGENTS_FILE = os.path.join(BASE_DIR, "agents.json")
-
-# Allowed routes
-ALLOWED_GET_ROUTES = ['/', '/index.html', '/api/agents']
-ALLOWED_POST_ROUTES = ['/api/chat']
-
-# Thread-safe conversation history with Lock
-conversation_history_lock = threading.Lock()
-conversation_history = []
 
 class SecureDashboardHandler(BaseHTTPRequestHandler):
-    def get_route(self):
-        return self.path.split('?')[0]
+    def send_json(self, data, status=200):
+        payload = json.dumps(data, ensure_ascii=False).encode()
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def allowed(self):
+        hosts = {'localhost:' + str(self.server.server_port), '127.0.0.1:' + str(self.server.server_port)}
+        host = self.headers.get('Host')
+        origin = self.headers.get('Origin')
+        if host not in hosts or (origin and origin != 'http://' + host):
+            self.send_json({'message': 'Host atau Origin tidak diizinkan.'}, 403)
+            return False
+        return True
 
     def do_GET(self):
-        route = self.get_route()
-        
-        if route in ALLOWED_GET_ROUTES:
-            if route == '/' or route == '/index.html':
-                self.serve_file('index.html', 'text/html; charset=utf-8')
+        if not self.allowed():
+            return
+        url = urlsplit(self.path)
+        route = url.path
+        query = parse_qs(url.query)
+        runtime = self.server.runtime
+        try:
+            if route in ('/', '/index.html'):
+                payload = (Path(BASE_DIR) / 'index.html').read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/html; charset=utf-8')
+                self.send_header('Content-Length', str(len(payload)))
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.end_headers()
+                self.wfile.write(payload)
             elif route == '/api/agents':
-                self.serve_file('agents.json', 'application/json')
-        else:
-            self.send_response(403)
-            self.end_headers()
-            self.wfile.write(b"Access Denied.")
+                self.send_json(runtime.agents())
+            elif route == '/api/tasks':
+                self.send_json(runtime.tasks(query.get('agent', [None])[0]))
+            elif route == '/api/task':
+                self.send_json(runtime.get(query.get('id', [''])[0]))
+            elif route == '/api/memory':
+                self.send_json(runtime.memories(query.get('agent', ['manager'])[0]))
+            elif route == '/api/files':
+                self.send_json(runtime.files())
+            elif route == '/api/file':
+                path = runtime.path(query.get('path', [''])[0])
+                if path.stat().st_size > 1000000:
+                    raise ValueError('File terlalu besar.')
+                # JSON/text only; never execute generated HTML in the dashboard origin.
+                self.send_json({'path': str(path.relative_to(runtime.workspace)),
+                                'content': path.read_text(encoding='utf-8')})
+            elif route == '/api/approvals':
+                self.send_json(runtime.approvals())
+            elif route == '/api/routines':
+                self.send_json(runtime.routines())
+            elif route == '/api/status':
+                self.send_json({'model': CONFIG['MODEL'], 'provider': CONFIG['PROVIDER']})
+            else:
+                self.send_json({'message': 'Rute tidak ditemukan.'}, 404)
+        except (KeyError, FileNotFoundError):
+            self.send_json({'message': 'Tidak ditemukan.'}, 404)
+        except (ValueError, OSError, UnicodeError) as exc:
+            self.send_json({'message': str(exc)}, 400)
 
     def do_POST(self):
-        # SECURITY: Check Origin/Host
-        origin = self.headers.get('Origin')
-        host = self.headers.get('Host')
-        
-        # Whitelist: Only accept from 127.0.0.1:5050 or localhost:5050
-        if host not in ['127.0.0.1:5050', 'localhost:5050']:
-            self.send_response(403)
-            self.end_headers()
-            self.wfile.write(b"Forbidden: Invalid Host")
+        if not self.allowed():
             return
-            
-        # CSRF Protection: Verify Origin matches Host
-        if origin and not (origin == 'http://127.0.0.1:5050' or origin == 'http://localhost:5050'):
-            self.send_response(403)
-            self.end_headers()
-            self.wfile.write(b"Forbidden: Cross-Origin Request Blocked")
+        if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+            self.send_json({'message': 'Gunakan application/json.'}, 415)
             return
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            if length <= 0 or length > 100000:
+                raise ValueError('Ukuran request tidak valid.')
+            req = json.loads(self.rfile.read(length))
+            if not isinstance(req, dict):
+                raise ValueError('Request harus objek JSON.')
+            route = urlsplit(self.path).path
+            runtime = self.server.runtime
+            if route in ('/api/tasks', '/api/chat') and not req.get('reset'):
+                self.send_json(runtime.submit(req.get('agent', 'manager'), req.get('message')), 202)
+            elif route == '/api/memory/reset' or (route == '/api/chat' and req.get('reset')):
+                runtime.forget(req.get('agent', 'manager'))
+                self.send_json({'status': 'success'})
+            elif route == '/api/approval':
+                if not isinstance(req.get('allow'), bool):
+                    raise ValueError('allow harus boolean.')
+                runtime.decide(req.get('id',''), req['allow'])
+                self.send_json({'status':'success'})
+            elif route == '/api/routines':
+                ident = runtime.add_routine(req.get('agent','manager'), req.get('message'), req.get('interval'))
+                self.send_json({'id':ident}, 201)
+            elif route == '/api/routine/toggle':
+                if not isinstance(req.get('enabled'), bool):
+                    raise ValueError('enabled harus boolean.')
+                runtime.toggle_routine(req.get('id',''),req['enabled'])
+                self.send_json({'status':'success'})
+            elif route == '/api/task/cancel':
+                self.send_json(runtime.cancel(req.get('id', '')))
+            else:
+                self.send_json({'message': 'Rute tidak ditemukan.'}, 404)
+        except KeyError as exc:
+            self.send_json({'message': str(exc)}, 404)
+        except (ValueError, TypeError) as exc:
+            self.send_json({'message': str(exc)}, 400)
 
-        route = self.get_route()
-        
-        if route == '/api/chat':
-            try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                post_data = self.rfile.read(content_length)
-                req = json.loads(post_data.decode('utf-8'))
-                
-                agent_role = req.get('agent', 'manager')
-                prompt = req.get('message', '')
-                reset = req.get('reset', False)
-                
-                if reset:
-                    with conversation_history_lock:
-                        conversation_history.clear()
-                    self.send_json({"status": "success", "reply": "Memori percakapan di-reset."})
-                    return
 
-                if not os.path.exists(AGENTS_FILE):
-                    self.send_json({"status": "error", "message": "File agents.json tidak ditemukan."})
-                    return
-
-                with open(AGENTS_FILE, 'r', encoding='utf-8') as f:
-                    agents = json.load(f)
-                    
-                agent_data = agents.get(agent_role, agents.get('manager'))
-                
-                # Thread-safe: Add user message to history only after API call verification
-                api_error = None
-                
-                try:
-                    # Constraint 1: Append message AFTER successful API verification
-                    with conversation_history_lock:
-                        conversation_history.append({"role": "user", "content": prompt})
-                        messages = [{"role": "system", "content": agent_data['prompt']}] + conversation_history[-10:]
-                except Exception as e:
-                    api_error = str(e)
-                    with conversation_history_lock:
-                        conversation_history.append({"role": "user", "content": prompt})
-                
-                api_payload = {
-                    "model": CONFIG["MODEL"],
-                    "messages": messages,
-                    "temperature": 0.7
-                }
-                
-                api_req = urllib.request.Request(
-                    CONFIG["API_URL"],
-                    data=json.dumps(api_payload).encode('utf-8'),
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {CONFIG['API_KEY']}"
-                    },
-                    method='POST'
-                )
-                
-                # Timeout 30 detik agar server tidak hang
-                bot_reply = None
-                res = None
-                try:
-                    res = urllib.request.urlopen(api_req, timeout=30)
-                    response_text = res.read().decode('utf-8')
-                    # Robust parsing to handle potential extra data (e.g. trailing newlines/garbage)
-                    res_json, idx = json.JSONDecoder().raw_decode(response_text)
-                    bot_reply = res_json['choices'][0]['message']['content']
-                    
-                    # Thread-safe: Append assistant reply only on success
-                    with conversation_history_lock:
-                        conversation_history.append({"role": "assistant", "content": bot_reply})
-                    
-                    out = {"status": "success", "reply": bot_reply, "agent": agent_role}
-                except (urllib.error.URLError, json.JSONDecodeError) as e:
-                    api_error = f"Koneksi ke Gateway ({CONFIG['API_URL']}) gagal: {str(e)}"
-                    with conversation_history_lock:
-                        if conversation_history and conversation_history[-1].get("role") == "user":
-                            conversation_history.pop()
-                except socket.timeout:
-                    api_error = "Gateway timeout (30s). 9Router terlalu lama merespons."
-                    with conversation_history_lock:
-                        if conversation_history and conversation_history[-1].get("role") == "user":
-                            conversation_history.pop()
-                except Exception as e:
-                    api_error = f"Server Error: {str(e)}"
-                    with conversation_history_lock:
-                        if conversation_history and conversation_history[-1].get("role") == "user":
-                            conversation_history.pop()
-                
-                if api_error:
-                    out = {"status": "error", "message": api_error}
-                
-                self.send_json(out)
-
-            except Exception as e:
-                self.send_json({"status": "error", "message": f"Server Error: {str(e)}"})
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def serve_file(self, filename, content_type):
-        filepath = os.path.join(BASE_DIR, filename)
-        if os.path.exists(filepath):
-            self.send_response(200)
-            self.send_header('Content-Type', content_type)
-            self.end_headers()
-            with open(filepath, 'rb') as f:
-                self.wfile.write(f.read())
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-    def send_json(self, data):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+def make_server(port=PORT, runtime=None):
+    server = ThreadingHTTPServer(('127.0.0.1', port), SecureDashboardHandler)
+    server.runtime = runtime or Runtime()
+    server.runtime.start()
+    return server
 
 if __name__ == '__main__':
-    os.chdir(BASE_DIR)
-    server = HTTPServer(('127.0.0.1', PORT), SecureDashboardHandler)
-    print(f"SECURE DASHBOARD AKTIF: http://127.0.0.1:{PORT}")
-    print(f"Using Gateway URL: {CONFIG['API_URL']} | Model: {CONFIG['MODEL']}")
-    server.serve_forever()
+    server = make_server()
+    print(f'SABILULUNGAN: http://127.0.0.1:{PORT}')
+    print(f"Gateway: {CONFIG['PROVIDER']} | Model: {CONFIG['MODEL']}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        server.runtime.stop()
