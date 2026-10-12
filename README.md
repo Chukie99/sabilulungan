@@ -17,11 +17,14 @@ CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan ja
 
 ## Fungsi yang tersedia
 
-- Kantor pixel dengan 13 avatar staf, nama panggilan, dan meja. Klik avatar
-  untuk memilih agen dan melihat tugas/memorinya. Animasi bekerja mengikuti
-  agen yang sedang menjalankan langkah runtime, termasuk spesialis delegasi.
-  Indikator menampilkan antrean, menunggu staf/persetujuan, selesai, dan gagal.
-  Jika koneksi terputus, animasi berhenti dan status ditandai belum diperbarui.
+- Kantor pixel RPG tampak atas dengan lounge, pantry, ruang meeting, tanaman,
+  dan meja. Setiap staf punya sprite dan aksesori berbeda. Karakter senggang
+  berjalan melalui lorong; saat ada tugas mereka menuju meja. Gerakan santai
+  hanya dekorasi, tidak menunjukkan agen sedang menjalankan tugas AI.
+  Klik karakter untuk memilih agen dan melihat tugas/memorinya. Indikator
+  mengikuti runtime, termasuk spesialis delegasi. Tombol jeda dan preferensi
+  reduced motion menghentikan animasi. Pada layar kecil peta dapat digeser.
+  Jika koneksi terputus, karakter berhenti dan status ditandai belum diperbarui.
 
 - Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
 - Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.
@@ -69,3 +72,5 @@ agen dan nama aksi tanpa isi respons gateway atau API key.
 Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna harus diuji dengan konfigurasi pengguna; test suite tidak mengklaim koneksi tersebut sudah diuji.
 
 Dependensi transkripsi/scraping lama ada di `requirements_full.txt` dan tidak diperlukan untuk dashboard inti.
+
+Tes sprite/jalur kantor: `node tests/test_office_ui.cjs` (Node hanya diperlukan untuk tes ini, bukan menjalankan dashboard).
