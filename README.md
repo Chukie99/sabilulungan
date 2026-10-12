@@ -41,6 +41,16 @@ PC dan aplikasi harus hidup agar tugas/rutinitas berjalan. Server hanya mendenga
 
 ## Pengujian
 
+Tes koneksi **live** di PC yang menjalankan 9Router: klik `CHECK_9ROUTER.bat`
+atau jalankan `python check_gateway.py` setelah mengisi `.env`. Tes memakai
+gateway asli dan memeriksa delegasi, isi file, pembacaan coder/Manager, memori,
+serta persistensi setelah runtime dibuka ulang. Klaim sukses model saja tidak
+cukup. Database/file tes memakai folder sementara yang terpisah dari workspace
+lu. Exit code 0 berarti seluruh pemeriksaan PASS; 1 berarti gagal. Tes dapat
+memakai kuota model dan berjalan maksimal sekitar 10 menit ditambah waktu
+penutupan panggilan model. Jangan merge berdasarkan tes tiruan saja jika
+penerimaan koneksi live belum lolos.
+
 `python -m unittest discover -s tests -v`
 
 Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna harus diuji dengan konfigurasi pengguna; test suite tidak mengklaim koneksi tersebut sudah diuji.
