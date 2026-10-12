@@ -17,6 +17,12 @@ CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan ja
 
 ## Fungsi yang tersedia
 
+- Kantor pixel dengan 13 avatar staf, nama panggilan, dan meja. Klik avatar
+  untuk memilih agen dan melihat tugas/memorinya. Animasi bekerja mengikuti
+  agen yang sedang menjalankan langkah runtime, termasuk spesialis delegasi.
+  Indikator menampilkan antrean, menunggu staf/persetujuan, selesai, dan gagal.
+  Jika koneksi terputus, animasi berhenti dan status ditandai belum diperbarui.
+
 - Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
 - Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.
 - Delegasi berantai maksimal 3 tingkat dengan total maksimal 24 langkah per tugas. Spesialis mengembalikan hasil ke agen pemberi tugas. Eksekusi serial untuk menghemat RAM dan mencegah benturan file.

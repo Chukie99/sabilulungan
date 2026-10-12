@@ -109,6 +109,22 @@ class StaffTests(unittest.TestCase):
         restored = Runtime(self.root)
         self.assertEqual(restored.get(task['id'])['status'],'interrupted')
 
+    def test_office_tracks_delegated_agent_and_terminal_state(self):
+        self.runtime = Runtime(self.root)
+        task = self.runtime.submit('manager', 'Office test')
+        self.assertEqual(self.runtime.office()['manager']['status'], 'queued')
+        with self.runtime.connect() as db:
+            db.execute("UPDATE tasks SET status='running' WHERE id=?", (task['id'],))
+        self.runtime.event(task['id'], 'coder', 'thinking', 'Working')
+        state = self.runtime.office()
+        self.assertEqual(state['coder']['status'], 'running')
+        self.assertEqual(state['manager']['status'], 'delegated')
+        self.runtime.event(task['id'], 'manager', 'thinking', 'Review')
+        self.assertEqual(self.runtime.office()['manager']['status'], 'running')
+        self.assertNotEqual(self.runtime.office()['coder']['status'], 'running')
+        self.runtime.cancel(task['id'])
+        self.assertEqual(self.runtime.office()['coder']['status'], 'cancelled')
+
     def test_python_requires_approval_and_returns_output(self):
         runtime = self.runtime_with([
             {'action':'run_python','code':'print(6 * 7)'},
@@ -184,6 +200,7 @@ class StaffTests(unittest.TestCase):
             self.assertEqual(status,202)
             self.wait(task)
             self.assertEqual(request('/api/task?id='+task['id'])[1]['reply'],'OK')
+            self.assertEqual(request('/api/office')[1]['manager']['status'], 'completed')
             for origin,host in [('http://evil.test',None),(None,'evil.test')]:
                 with self.assertRaises(HTTPError) as exc:
                     request('/api/tasks',{'message':'bad'},origin,host)

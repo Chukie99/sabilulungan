@@ -139,6 +139,35 @@ class Runtime:
                 rows = db.execute('SELECT * FROM tasks ORDER BY rowid DESC LIMIT 50')
             return [dict(x) for x in rows]
 
+    def office(self):
+        """One snapshot for every desk, including delegated specialists."""
+        desks = {role: {'status': 'idle', 'action': '', 'task': None} for role in self.agents()}
+        with self.connect() as db:
+            rows = db.execute('SELECT * FROM tasks ORDER BY rowid DESC LIMIT 50').fetchall()
+            # Oldest first, so newer task state wins; active tasks override history.
+            for row in reversed(rows):
+                if row['status'] in ('queued', 'running', 'waiting_approval'):
+                    continue
+                roles = {row['agent']} | {e['agent'] for e in db.execute('SELECT DISTINCT agent FROM events WHERE task=?', (row['id'],))}
+                for role in roles & desks.keys():
+                    desks[role] = {'status': row['status'], 'action': '', 'task': row['id']}
+            for row in reversed(rows):
+                if row['status'] == 'queued':
+                    desks[row['agent']] = {'status': 'queued', 'action': '', 'task': row['id']}
+            for row in rows:
+                if row['status'] not in ('running', 'waiting_approval'):
+                    continue
+                last = db.execute('SELECT * FROM events WHERE task=? ORDER BY id DESC LIMIT 1', (row['id'],)).fetchone()
+                role = last['agent'] if last else row['agent']
+                if row['agent'] != role:
+                    desks[row['agent']] = {'status': 'delegated', 'action': role, 'task': row['id']}
+                if role in desks:
+                    action = last['kind'] if last else 'thinking'
+                    if last and action == 'tool':
+                        action = last['content'].split(':', 1)[0]
+                    desks[role] = {'status': row['status'], 'action': action, 'task': row['id']}
+        return desks
+
     def event(self, task, agent, kind, content):
         with self.connect() as db:
             db.execute('INSERT INTO events(task,agent,kind,content) VALUES(?,?,?,?)',

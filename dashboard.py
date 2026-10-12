@@ -47,6 +47,8 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 self.send_json(runtime.agents())
             elif route == '/api/tasks':
                 self.send_json(runtime.tasks(query.get('agent', [None])[0]))
+            elif route == '/api/office':
+                self.send_json(runtime.office())
             elif route == '/api/task':
                 self.send_json(runtime.get(query.get('id', [''])[0]))
             elif route == '/api/memory':
