@@ -17,14 +17,19 @@ CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan ja
 
 ## Fungsi yang tersedia
 
-- Kantor pixel RPG tampak atas dengan lounge, pantry, ruang meeting, tanaman,
-  dan meja. Setiap staf punya sprite dan aksesori berbeda. Karakter senggang
-  berjalan melalui lorong; saat ada tugas mereka menuju meja. Gerakan santai
-  hanya dekorasi, tidak menunjukkan agen sedang menjalankan tugas AI.
-  Klik karakter untuk memilih agen dan melihat tugas/memorinya. Indikator
-  mengikuti runtime, termasuk spesialis delegasi. Tombol jeda dan preferensi
-  reduced motion menghentikan animasi. Pada layar kecil peta dapat digeser.
-  Jika koneksi terputus, karakter berhenti dan status ditandai belum diperbarui.
+- Kantor virtual bergaya pixel JRPG di platform desa pohon, dengan warna
+  kayu/batu/daun, jembatan, portal, rune, lounge dan pantry. Karakter diperbesar,
+  memiliki siluet/aksesori masing-masing, serta animasi kaki, arah jalan, dan
+  kerja. 20 staf punya tempat kerja sendiri. Klik karakter membuka panel agen;
+  peta dapat diperbesar atau digeser. Gerak senggang hanya dekorasi.
+  Status kerja/delegasi/persetujuan tetap berasal dari runtime. Animasi dapat
+  dijeda dan berhenti ketika koneksi terputus atau reduced motion diaktifkan.
+- Profil produksi: storyboarder, pengumpul aset, voice-over, video editor,
+  caption editor, sound designer dan QA video. Profil ini dapat menyusun naskah,
+  storyboard, manifest aset/timeline, dan checklist dengan tools teks yang ada.
+  **Integrasi pencarian/download media, TTS, dan render belum tersedia.** Tool
+  `media_status` membedakan deteksi FFmpeg dari kemampuan render yang benar-benar
+  terintegrasi. Profil tidak boleh mengklaim audio/video selesai tanpa bukti.
 
 - Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
 - Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.

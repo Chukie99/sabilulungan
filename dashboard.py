@@ -43,6 +43,15 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 self.send_header('X-Content-Type-Options', 'nosniff')
                 self.end_headers()
                 self.wfile.write(payload)
+            elif route in ('/office.js', '/office.css'):
+                payload = (Path(BASE_DIR) / route.lstrip('/')).read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/javascript; charset=utf-8' if route.endswith('.js') else 'text/css; charset=utf-8')
+                self.send_header('Content-Length', str(len(payload)))
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.end_headers()
+                self.wfile.write(payload)
             elif route == '/api/agents':
                 self.send_json(runtime.agents())
             elif route == '/api/tasks':

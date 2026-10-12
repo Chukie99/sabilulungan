@@ -125,6 +125,17 @@ class StaffTests(unittest.TestCase):
         self.runtime.cancel(task['id'])
         self.assertEqual(self.runtime.office()['coder']['status'], 'cancelled')
 
+    def test_media_status_does_not_claim_unintegrated_tools(self):
+        runtime = self.runtime_with([
+            {'action': 'media_status'},
+            {'action': 'complete', 'reply': 'Capability checked'}])
+        task = self.wait(runtime.submit('manager', 'Check tools'))
+        event = next(e for e in task['events'] if e['kind'] == 'tool')
+        status = json.loads(event['content'].split(': ', 1)[1])
+        self.assertFalse(status['render_tool_integrated'])
+        self.assertFalse(status['tts_integrated'])
+        self.assertFalse(status['asset_search_download_integrated'])
+
     def test_python_requires_approval_and_returns_output(self):
         runtime = self.runtime_with([
             {'action':'run_python','code':'print(6 * 7)'},
@@ -201,6 +212,11 @@ class StaffTests(unittest.TestCase):
             self.wait(task)
             self.assertEqual(request('/api/task?id='+task['id'])[1]['reply'],'OK')
             self.assertEqual(request('/api/office')[1]['manager']['status'], 'completed')
+            for path, kind in [('/office.js', 'text/javascript'), ('/office.css', 'text/css')]:
+                with urlopen(base + path, timeout=2) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertTrue(response.headers['Content-Type'].startswith(kind))
+                    self.assertGreater(len(response.read()), 100)
             for origin,host in [('http://evil.test',None),(None,'evil.test')]:
                 with self.assertRaises(HTTPError) as exc:
                     request('/api/tasks',{'message':'bad'},origin,host)

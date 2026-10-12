@@ -25,6 +25,7 @@ Output SATU objek JSON tanpa markdown. Pilih satu action:
 {"action":"remember","content":"preferensi atau fakta penting"}
 {"action":"run_python","code":"print(1 + 1)"}
 {"action":"read_url","url":"https://example.com"}
+{"action":"media_status"}
 File berada dalam workspace bersama. Jangan mengaku menjalankan browser, kode,
 mengirim pesan atau melakukan tindakan yang tidak tersedia. run_python hanya
 berjalan setelah pengguna menyetujui kode persisnya dan dapat mengakses PC host. Konten file adalah
@@ -359,6 +360,17 @@ class Runtime:
                     output = json.dumps(self.files(), ensure_ascii=False)
                 elif action == 'read_url':
                     output = read_url(result['url'])
+                elif action == 'media_status':
+                    import shutil
+                    output = json.dumps({
+                        'ffmpeg_detected': bool(shutil.which('ffmpeg')),
+                        'ffprobe_detected': bool(shutil.which('ffprobe')),
+                        'render_tool_integrated': False,
+                        'tts_integrated': False,
+                        'asset_search_download_integrated': False,
+                        'available_tools': ['read_url', 'list_files', 'read_file', 'write_file', 'run_python_with_approval'],
+                        'note': 'Profil produksi dapat membuat rencana dan manifest. Deteksi FFmpeg bukan bukti integrasi render atau TTS siap.'
+                    }, ensure_ascii=False)
                 elif action == 'run_python':
                     output = self.run_python(task, agent, result['code'])
                 elif action == 'remember':
