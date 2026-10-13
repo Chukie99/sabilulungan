@@ -25,16 +25,19 @@ CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan ja
   Status kerja/delegasi/persetujuan tetap berasal dari runtime. Animasi dapat
   dijeda dan berhenti ketika koneksi terputus atau reduced motion diaktifkan.
 - Profil produksi: storyboarder, pengumpul aset, voice-over, video editor,
-  caption editor, sound designer dan QA video. Profil ini dapat menyusun naskah,
-  storyboard, manifest aset/timeline, dan checklist dengan tools teks yang ada.
-  **Integrasi pencarian/download media, TTS, dan render belum tersedia.** Tool
-  `media_status` membedakan deteksi FFmpeg dari kemampuan render yang benar-benar
-  terintegrasi. Profil tidak boleh mengklaim audio/video selesai tanpa bukti.
+  caption editor, sound designer dan QA video. Tools `make_short`,
+  `synthesize_voice`, `render_short`, `inspect_media`, dan `download_image`
+  menghasilkan narasi Edge TTS, kartu teks/gambar lokal, MP4 720x1280 dan QA
+  audio/durasi. `media_status` memisahkan tools terintegrasi dari dependensi PC.
+  Belum ada integrasi Supertonic, pencarian stok otomatis, mixing musik/SFX,
+  editing klip video, atau video generatif. Caption ditaksir per adegan;
+  sinkron per kata belum tersedia. Download gambar mencatat sumber/hak pakai
+  sebagai catatan belum diverifikasi, bukan bukti lisensi.
 
 - Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
 - Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.
 - Delegasi berantai maksimal 3 tingkat dengan total maksimal 24 langkah per tugas. Spesialis mengembalikan hasil ke agen pemberi tugas. Eksekusi serial untuk menghemat RAM dan mencegah benturan file.
-- Tools `list_files`, `read_file`, `write_file`, `remember`, `delegate`, `read_url`, dan `run_python`.
+- Tools teks/workspace dan media khusus; `run_python` tetap membutuhkan persetujuan kode.
 - File tools dibatasi ke `workspace/`; file lama tidak ditimpa. Download file melalui dashboard.
 - Membaca URL HTTPS publik sebagai teks, dengan batas ukuran, timeout, validasi DNS dan redirect. Tidak mendukung halaman yang memerlukan JavaScript atau login.
 - Eksekusi Python setelah lu menyetujui kode persisnya di dashboard. Output/exit code dikembalikan ke agen, timeout 30 detik. Penolakan dikembalikan sebagai hasil tool agar agen dapat mencari alternatif.
@@ -79,3 +82,35 @@ Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna
 Dependensi transkripsi/scraping lama ada di `requirements_full.txt` dan tidak diperlukan untuk dashboard inti.
 
 Tes sprite/jalur kantor: `node tests/test_office_ui.cjs` (Node hanya diperlukan untuk tes ini, bukan menjalankan dashboard).
+
+## Membuat satu Short MP4
+
+1. Jalankan `SETUP_MEDIA.bat` untuk Pillow dan edge-tts. Jika FFmpeg/ffprobe
+   belum ada, script menampilkan perintah `winget install --id Gyan.FFmpeg --exact`.
+   Setelah instalasi FFmpeg, tutup/buka CMD agar PATH diperbarui.
+2. Jalankan `CHECK_MEDIA.bat`: tes memakai layanan TTS asli, render MP4 nyata,
+   dan ffprobe pada folder sementara. PASS baru berarti koneksi suara dan
+   renderer PC tersebut lolos, bukan sekadar library terpasang.
+3. Restart dashboard, pilih Manager, lalu beri tugas:
+   > Buat satu Short horor fiksi 30 detik memakai make_short. Gunakan 5 adegan,
+   > total sekitar 70 kata, visual teks original, dan simpan short_01/hasil.mp4.
+   > Periksa hasil dengan inspect_media. Jangan klaim berhasil jika tool gagal.
+4. Download MP4/MP3 melalui Hasil kerja bersama. Endpoint download mengirim
+   bytes asli sebagai attachment; tidak memperlakukan video sebagai teks.
+
+Edge TTS memakai internet, tanpa API key. Koneksi layanan dapat gagal/berubah;
+status ready hanya memeriksa dependensi, bukan menjamin akses layanan. Model
+TTS tetap harus menghasilkan audio valid sebelum render. Verifikasi SSL tidak
+boleh dimatikan untuk menyembunyikan error. Supertonic belum memiliki adapter;
+audio MP3/WAV/M4A yang diekspor dari aplikasi lain dapat ditempatkan di workspace
+lalu dipakai `render_short`. Tidak ada fallback video hening yang diklaim lengkap.
+
+`make_short` membaca scenes.text sebagai narasi dan caption. Durasi target
+5–60 detik; perubahan tempo dibatasi 0.75–1.33. Narasi yang terlalu pendek/panjang
+harus direvisi. Caption bukan timing per kata. Visual bawaan berupa slideshow
+kartu teks bertema gelap; gambar lokal dapat digunakan lewat scenes.image.
+Renderer CPU memakai dua thread dan 24 fps, tanpa kebutuhan GPU. MP4 tidak
+menimpa hasil lama, hanya dipublikasikan setelah QA stream/durasi lolos.
+
+Tes media nyata dengan audio fixture sintetis: `python -m unittest discover -s tests -v`.
+Tes fixture membuktikan render/mux/QA, bukan koneksi TTS atau kualitas narasi.

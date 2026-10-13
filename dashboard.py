@@ -71,6 +71,21 @@ class SecureDashboardHandler(BaseHTTPRequestHandler):
                 # JSON/text only; never execute generated HTML in the dashboard origin.
                 self.send_json({'path': str(path.relative_to(runtime.workspace)),
                                 'content': path.read_text(encoding='utf-8')})
+            elif route == '/api/download':
+                path = runtime.path(query.get('path', [''])[0])
+                size = path.stat().st_size
+                if not path.is_file() or size > 200000000:
+                    raise ValueError('Download maksimal 200 MB.')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/octet-stream')
+                self.send_header('Content-Length', str(size))
+                self.send_header('Content-Disposition', 'attachment')
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                with path.open('rb') as file:
+                    while chunk := file.read(65536):
+                        self.wfile.write(chunk)
             elif route == '/api/approvals':
                 self.send_json(runtime.approvals())
             elif route == '/api/routines':

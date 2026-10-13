@@ -3,6 +3,7 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import time
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, urljoin
 
@@ -59,6 +60,50 @@ def read_url(url, redirects=0):
             parser.feed(text)
             text='\n'.join(parser.parts)
         return 'Sumber: '+url+'\n'+text[:20000]
+    finally:
+        connection.close()
+        raw.close()
+
+
+def download_image_bytes(url, redirects=0, cancelled=lambda: False, deadline=None):
+    """Bounded image GET with the same DNS pinning/private-network policy."""
+    if not isinstance(url, str) or len(url) > 4000:
+        raise ValueError('URL tidak valid.')
+    deadline = deadline or time.monotonic() + 90
+    if cancelled() or time.monotonic() >= deadline:
+        raise ValueError('Download dihentikan atau timeout.')
+    parsed = urlsplit(url)
+    if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.port not in (None,443):
+        raise ValueError('Hanya HTTPS publik port 443.')
+    addresses = socket.getaddrinfo(parsed.hostname,443,type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
+        raise ValueError('Alamat lokal/privat tidak diizinkan.')
+    connection = http.client.HTTPSConnection(parsed.hostname, timeout=20)
+    raw = socket.create_connection((addresses[0][4][0],443),timeout=20)
+    try:
+        connection.sock = ssl.create_default_context().wrap_socket(raw,server_hostname=parsed.hostname)
+        connection.request('GET', (parsed.path or '/') + ('?' + parsed.query if parsed.query else ''), headers={'User-Agent':'Sabilulungan/3.0'})
+        response = connection.getresponse()
+        if response.status in (301,302,303,307,308):
+            location = response.getheader('Location')
+            if redirects >= 3 or not location:
+                raise ValueError('Redirect gambar tidak valid.')
+            return download_image_bytes(urljoin(url,location),redirects+1,cancelled,deadline)
+        if response.status != 200 or response.getheader('Content-Type','').split(';')[0] not in ('image/png','image/jpeg','image/webp'):
+            raise ValueError('URL wajib mengembalikan PNG/JPEG/WebP dengan HTTP 200.')
+        chunks=[]
+        size=0
+        while True:
+            if cancelled() or time.monotonic() >= deadline:
+                raise ValueError('Download dihentikan atau timeout.')
+            chunk=response.read1(65536)
+            if not chunk:
+                break
+            size+=len(chunk)
+            if size > 15000000:
+                raise ValueError('Gambar melebihi 15 MB.')
+            chunks.append(chunk)
+        return b''.join(chunks)
     finally:
         connection.close()
         raw.close()

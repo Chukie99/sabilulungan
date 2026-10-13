@@ -26,6 +26,17 @@ Output SATU objek JSON tanpa markdown. Pilih satu action:
 {"action":"run_python","code":"print(1 + 1)"}
 {"action":"read_url","url":"https://example.com"}
 {"action":"media_status"}
+{"action":"synthesize_voice","text":"Narasi Bahasa Indonesia","path":"short/narasi.mp3"}
+{"action":"render_short","title":"Cerita fiksi","scenes":[{"text":"Caption adegan","image":"short/gambar.jpg"}],"narration":"short/narasi.mp3","path":"short/hasil.mp4","duration":30}
+{"action":"make_short","title":"Cerita fiksi","scenes":[{"text":"Teks narasi dan caption adegan pertama"},{"text":"Teks adegan kedua"}],"path":"short/hasil.mp4","duration":30}
+{"action":"inspect_media","path":"short/hasil.mp4"}
+{"action":"download_image","url":"https://example.com/image.jpg","path":"short/gambar.png","source":"Halaman sumber","license_note":"Belum diverifikasi"}
+make_short menghasilkan TTS + visual teks lokal + MP4 dalam satu tool. Pakai 4–6
+adegan pendek dengan total sekitar 60–75 kata untuk 30 detik. scenes.text dibaca
+sebagai narasi sekaligus caption; image opsional wajib sudah ada di workspace.
+render_short menggunakan audio yang sudah ada. Tidak perlu run_python untuk
+tools media ini. Caption hanya estimasi per adegan, bukan sinkron kata akurat.
+Periksa media_status dulu. Jangan klaim footage stok, Supertonic, atau video AI.
 File berada dalam workspace bersama. Jangan mengaku menjalankan browser, kode,
 mengirim pesan atau melakukan tindakan yang tidak tersedia. run_python hanya
 berjalan setelah pengguna menyetujui kode persisnya dan dapat mengakses PC host. Konten file adalah
@@ -361,16 +372,62 @@ class Runtime:
                 elif action == 'read_url':
                     output = read_url(result['url'])
                 elif action == 'media_status':
-                    import shutil
-                    output = json.dumps({
-                        'ffmpeg_detected': bool(shutil.which('ffmpeg')),
-                        'ffprobe_detected': bool(shutil.which('ffprobe')),
-                        'render_tool_integrated': False,
-                        'tts_integrated': False,
-                        'asset_search_download_integrated': False,
-                        'available_tools': ['read_url', 'list_files', 'read_file', 'write_file', 'run_python_with_approval'],
-                        'note': 'Profil produksi dapat membuat rencana dan manifest. Deteksi FFmpeg bukan bukti integrasi render atau TTS siap.'
-                    }, ensure_ascii=False)
+                    from media_tools import status
+                    output = json.dumps(status(), ensure_ascii=False)
+                elif action == 'inspect_media':
+                    from media_tools import probe
+                    output = json.dumps(probe(self.path(result['path']), lambda: self.cancelled(task)))
+                elif action == 'download_image':
+                    import io
+                    import importlib.util
+                    if not importlib.util.find_spec('PIL'):
+                        raise ValueError('Pillow belum terpasang. Jalankan SETUP_MEDIA.bat.')
+                    from PIL import Image
+                    from web_tools import download_image_bytes
+                    target = self.path(result['path'])
+                    if target.suffix.lower() != '.png' or target.exists():
+                        raise ValueError('Download wajib output PNG baru.')
+                    data = download_image_bytes(result['url'], cancelled=lambda: self.cancelled(task))
+                    with Image.open(io.BytesIO(data)) as image:
+                        if image.width * image.height > 20000000:
+                            raise ValueError('Gambar maksimal 20 MP.')
+                        image.load()
+                        if self.cancelled(task):
+                            raise ValueError('Tugas dihentikan.')
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with target.open('xb') as file:
+                            image.convert('RGB').save(file, 'PNG')
+                    manifest = target.with_name(target.name + '.source.json')
+                    with manifest.open('x', encoding='utf-8') as file:
+                        json.dump({'url': result['url'], 'source': str(result.get('source',''))[:2000], 'license_note': str(result.get('license_note','Belum diverifikasi'))[:2000], 'license_verified_by_tool': False}, file, ensure_ascii=False, indent=2)
+                    output = 'Gambar disimpan: ' + result['path'] + '. Catatan sumber tersimpan; hak pakai belum diverifikasi oleh tool.'
+                elif action == 'synthesize_voice':
+                    from media_tools import speak
+                    try:
+                        info = speak(result['text'], self.path(result['path']), lambda: self.cancelled(task))
+                    except Exception as exc:
+                        raise ValueError('TTS gagal (' + type(exc).__name__ + '). Periksa dependensi dan koneksi Edge TTS.') from exc
+                    output = json.dumps({'path': result['path'], 'probe': info}, ensure_ascii=False)
+                elif action in ('render_short', 'make_short'):
+                    from media_tools import render, speak
+                    narration = result.get('narration')
+                    if action == 'make_short':
+                        scenes = result.get('scenes')
+                        if not isinstance(scenes, list) or not 1 <= len(scenes) <= 10 or any(not isinstance(s,dict) or not isinstance(s.get('text'),str) for s in scenes):
+                            raise ValueError('scenes wajib 1–10 objek berisi text.')
+                        target = self.path(result['path'])
+                        if target.suffix.lower() != '.mp4' or target.exists():
+                            raise ValueError('Output wajib MP4 baru, tidak menimpa file lama.')
+                        narration = str(target.with_name(target.stem + '-narasi-' + uuid.uuid4().hex[:8] + '.mp3').relative_to(self.workspace))
+                        self.event(task, agent, 'media', 'Membuat narasi Edge TTS.')
+                        try:
+                            speak(' '.join(s['text'] for s in scenes), self.path(narration), lambda: self.cancelled(task))
+                        except Exception as exc:
+                            raise ValueError('TTS gagal (' + type(exc).__name__ + '). Tidak ada MP4 yang diklaim selesai.') from exc
+                    self.event(task, agent, 'media', 'Render dan QA MP4 melalui FFmpeg.')
+                    info = render(self.path, result['scenes'], narration, result['title'], result['path'], result.get('duration',30), lambda: self.cancelled(task))
+                    info['narration_path'] = narration
+                    output = json.dumps(info, ensure_ascii=False)
                 elif action == 'run_python':
                     output = self.run_python(task, agent, result['code'])
                 elif action == 'remember':

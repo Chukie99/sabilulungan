@@ -125,15 +125,15 @@ class StaffTests(unittest.TestCase):
         self.runtime.cancel(task['id'])
         self.assertEqual(self.runtime.office()['coder']['status'], 'cancelled')
 
-    def test_media_status_does_not_claim_unintegrated_tools(self):
+    def test_media_status_distinguishes_integrated_tools_and_readiness(self):
         runtime = self.runtime_with([
             {'action': 'media_status'},
             {'action': 'complete', 'reply': 'Capability checked'}])
         task = self.wait(runtime.submit('manager', 'Check tools'))
         event = next(e for e in task['events'] if e['kind'] == 'tool')
         status = json.loads(event['content'].split(': ', 1)[1])
-        self.assertFalse(status['render_tool_integrated'])
-        self.assertFalse(status['tts_integrated'])
+        self.assertTrue(status['render_tool_integrated'])
+        self.assertTrue(status['tts_integrated'])
         self.assertFalse(status['asset_search_download_integrated'])
 
     def test_python_requires_approval_and_returns_output(self):
@@ -185,10 +185,12 @@ class StaffTests(unittest.TestCase):
             restored.add_routine('coder','Invalid',0)
 
     def test_web_tools_reject_private_targets(self):
-        from web_tools import read_url, TextParser
+        from web_tools import read_url, TextParser, download_image_bytes
         for url in ('http://example.com','https://127.0.0.1','https://localhost','https://example.com:8080','https://user:pass@example.com'):
             with self.assertRaises(ValueError):
                 read_url(url)
+            with self.assertRaises(ValueError):
+                download_image_bytes(url)
         parser=TextParser()
         parser.feed('<h1>Useful</h1><script>bad()</script><style>hidden</style><p>Text</p>')
         self.assertEqual(parser.parts,['Useful','Text'])
@@ -212,6 +214,11 @@ class StaffTests(unittest.TestCase):
             self.wait(task)
             self.assertEqual(request('/api/task?id='+task['id'])[1]['reply'],'OK')
             self.assertEqual(request('/api/office')[1]['manager']['status'], 'completed')
+            data = b'\x00\x01\xff\xfe'
+            (runtime.workspace / 'binary.mp4').write_bytes(data)
+            with urlopen(base + '/api/download?path=binary.mp4', timeout=2) as response:
+                self.assertEqual(response.read(), data)
+                self.assertEqual(response.headers['Content-Disposition'], 'attachment')
             for path, kind in [('/office.js', 'text/javascript'), ('/office.css', 'text/css')]:
                 with urlopen(base + path, timeout=2) as response:
                     self.assertEqual(response.status, 200)
