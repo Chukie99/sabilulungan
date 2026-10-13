@@ -1,31 +1,116 @@
-# Sabilulungan (Digital Staff System)
+# Sabilulungan — Staf AI v3
 
-Framework multi-agen kolaboratif berbasis Python & Local LLM Gateway (9Router / OpenRouter) dengan antarmuka dashboard yang aman.
+Workspace staf AI lokal dengan model melalui 9Router/OpenRouter. Beri tugas lewat dashboard; Manager dapat mendelegasikan ke spesialis, membaca sumber web, membuat file, dan memeriksa hasil. Progres berasal dari aktivitas runtime, bukan animasi kerja palsu.
 
-## Struktur Project
-- `config.py`: Pengelola konfigurasi dan `.env` terpusat.
-- `dashboard.py`: Secure HTTP server dengan pembatasan rute dan proteksi *Origin/Host*.
-- `orchestrator.py`: CLI multi-agen dan pipeline delegasi tugas.
-- `multi_agent.py`: Interface alternatif interaktif.
-- `index.html`: Dashboard UI (XSS-mitigated, with chat & reset support).
-- `agents.json`: Profil agen (Manager, Coder, Designer, dsb).
+## Menjalankan di Windows
 
-## Instalasi & Cara Menjalankan
+1. Buka terminal di folder project dan jalankan `pip install -r requirements.txt`.
+2. Salin `.env.example` ke `.env`, lalu atur `API_KEY`, `MODEL`, dan `API_URL` sesuai gateway lu.
+3. Klik `START_DASHBOARD.bat`, atau jalankan `python dashboard.py`.
+4. Buka http://127.0.0.1:5050. Pilih Manager, tulis tugas, lalu klik **Kerjakan tugas**.
 
-1. **Install Dependensi:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Konfigurasi Environment (.env):**
-   Salin file `.env.example` menjadi `.env`, lalu isi konfigurasi API Key dan Provider Anda:
-   ```env
-   PROVIDER=9router
-   API_KEY=your_api_key_here
-   MODEL=gpt-4o
-   ```
-3. **Menjalankan Dashboard:**
-   Klik dua kali pada `START_DASHBOARD.bat` atau jalankan via terminal:
-   ```bash
-   python dashboard.py
-   ```
-   Akses di browser: `http://localhost:5050`
+Contoh tugas:
+
+> Delegasikan ke copywriter untuk membuat 5 skrip reels horor Bahasa Indonesia, durasi sekitar 45 detik. Simpan tiap skrip sebagai file teks berbeda. Baca hasilnya lalu periksa apakah hook dan penutupnya jelas.
+
+CLI alternatif: `python orchestrator.py` atau `python multi_agent.py`. Jangan jalankan CLI dan dashboard bersamaan dalam folder yang sama; keduanya memiliki worker dan memakai database yang sama.
+
+## Fungsi yang tersedia
+
+- Kantor virtual bergaya pixel JRPG di platform desa pohon, dengan warna
+  kayu/batu/daun, jembatan, portal, rune, lounge dan pantry. Karakter diperbesar,
+  memiliki siluet/aksesori masing-masing, serta animasi kaki, arah jalan, dan
+  kerja. 20 staf punya tempat kerja sendiri. Klik karakter membuka panel agen;
+  peta dapat diperbesar atau digeser. Gerak senggang hanya dekorasi.
+  Status kerja/delegasi/persetujuan tetap berasal dari runtime. Animasi dapat
+  dijeda dan berhenti ketika koneksi terputus atau reduced motion diaktifkan.
+- Profil produksi: storyboarder, pengumpul aset, voice-over, video editor,
+  caption editor, sound designer dan QA video. Tools `make_short`,
+  `synthesize_voice`, `render_short`, `inspect_media`, dan `download_image`
+  menghasilkan narasi Edge TTS, kartu teks/gambar lokal, MP4 720x1280 dan QA
+  audio/durasi. `media_status` memisahkan tools terintegrasi dari dependensi PC.
+  Belum ada integrasi Supertonic, pencarian stok otomatis, mixing musik/SFX,
+  editing klip video, atau video generatif. Caption ditaksir per adegan;
+  sinkron per kata belum tersedia. Download gambar mencatat sumber/hak pakai
+  sebagai catatan belum diverifikasi, bukan bukti lisensi.
+
+- Antrean tugas latar belakang; menutup tab tidak menghentikan worker.
+- Profil agen, konteks percakapan terpisah per agen utama, dan memori eksplisit per agen.
+- Delegasi berantai maksimal 3 tingkat dengan total maksimal 24 langkah per tugas. Spesialis mengembalikan hasil ke agen pemberi tugas. Eksekusi serial untuk menghemat RAM dan mencegah benturan file.
+- Tools teks/workspace dan media khusus; `run_python` tetap membutuhkan persetujuan kode.
+- File tools dibatasi ke `workspace/`; file lama tidak ditimpa. Download file melalui dashboard.
+- Membaca URL HTTPS publik sebagai teks, dengan batas ukuran, timeout, validasi DNS dan redirect. Tidak mendukung halaman yang memerlukan JavaScript atau login.
+- Eksekusi Python setelah lu menyetujui kode persisnya di dashboard. Output/exit code dikembalikan ke agen, timeout 30 detik. Penolakan dikembalikan sebagai hasil tool agar agen dapat mencari alternatif.
+- Rutinitas berulang berdasarkan interval menit. Simpan/jeda/aktifkan lewat dashboard. Jika aplikasi mati, jadwal yang terlewat dijalankan sekali setelah aktif; tidak menumpuk backlog.
+- Skill berbentuk file Markdown di `workspace/skills/`. Minta agen menulis prosedur yang sudah berhasil ke `skills/nama.md`; daftar skill masuk ke konteks agen dan bisa dibaca dengan tool `read_file`.
+- SQLite menyimpan tugas, aktivitas, memori, persetujuan, dan rutinitas. Tugas yang terputus ditandai `interrupted`, tidak diputar ulang otomatis.
+- Hentikan tugas melalui dashboard. Panggilan model yang sedang berjalan berhenti setelah respons/timeout; kode Python yang sedang berjalan dihentikan pada pemeriksaan berikutnya.
+
+## Batas yang perlu dipahami
+
+Ini implementasi lokal fungsi inti, belum setara seluruh produk Grok Bot. Belum ada browser visual dengan klik/login, komputer cloud, aplikasi mobile, konektor akun, voice, grup chat, atau beberapa agen yang berjalan paralel. Model harus mengikuti protokol JSON; model yang tidak mengikuti protokol akan menghasilkan tugas gagal dengan pesan error, bukan laporan sukses palsu.
+
+`run_python` berjalan langsung pada PC host, **bukan sandbox OS**. Kode dapat mengakses file, jaringan, dan menjalankan program dengan hak pengguna. Periksa setiap kode sebelum menyetujui. API key tidak diteruskan lewat environment subprocess, tetapi ini tidak mencegah kode membaca file konfigurasi pada PC. Timeout menghentikan proses Python utama; proses anak yang dibuat oleh kode tidak dijamin ikut berhenti. Rutinitas tidak dapat melewati persetujuan ini.
+
+Semua agen berbagi workspace. Memori spesialis yang disimpan eksplisit dan aktivitas delegasinya bertahan; konteks percakapan otomatis diambil dari tugas selesai yang dimiliki agen tersebut. Reset memori mengarsipkan konteks tugas selesai dan menghapus memori eksplisit, tanpa menghapus file atau audit trail. Reset diblokir selama ada tugas aktif.
+
+PC dan aplikasi harus hidup agar tugas/rutinitas berjalan. Server hanya mendengarkan localhost; tidak dirancang untuk diekspos ke internet.
+
+## Pengujian
+
+Tes koneksi **live** di PC yang menjalankan 9Router: klik `CHECK_9ROUTER.bat`
+atau jalankan `python check_gateway.py` setelah mengisi `.env`. Tes memakai
+gateway asli dan memeriksa delegasi, isi file, pembacaan coder/Manager, memori,
+serta persistensi setelah runtime dibuka ulang. Klaim sukses model saja tidak
+cukup. Database/file tes memakai folder sementara yang terpisah dari workspace
+lu. Exit code 0 berarti seluruh pemeriksaan PASS; 1 berarti gagal. Tes dapat
+memakai kuota model dan berjalan maksimal sekitar 10 menit ditambah waktu
+penutupan panggilan model. Jangan merge berdasarkan tes tiruan saja jika
+penerimaan koneksi live belum lolos.
+
+Tes memori dikirim langsung ke coder sebagai tugas terpisah supaya tidak
+bergantung pada kelengkapan instruksi yang diteruskan Manager. `memory`
+memerlukan bukti tool `remember` sukses dan isi persis yang diminta.
+`persistence` memeriksa tugas/aktivitas setelah runtime dibuka ulang;
+`memory_persistence` khusus memeriksa memori tersimpan. Progres menampilkan
+agen dan nama aksi tanpa isi respons gateway atau API key.
+
+`python -m unittest discover -s tests -v`
+
+Tes menggunakan model tiruan dan server HTTP nyata. Akses 9Router di PC pengguna harus diuji dengan konfigurasi pengguna; test suite tidak mengklaim koneksi tersebut sudah diuji.
+
+Dependensi transkripsi/scraping lama ada di `requirements_full.txt` dan tidak diperlukan untuk dashboard inti.
+
+Tes sprite/jalur kantor: `node tests/test_office_ui.cjs` (Node hanya diperlukan untuk tes ini, bukan menjalankan dashboard).
+
+## Membuat satu Short MP4
+
+1. Jalankan `SETUP_MEDIA.bat` untuk Pillow dan edge-tts. Jika FFmpeg/ffprobe
+   belum ada, script menampilkan perintah `winget install --id Gyan.FFmpeg --exact`.
+   Setelah instalasi FFmpeg, tutup/buka CMD agar PATH diperbarui.
+2. Jalankan `CHECK_MEDIA.bat`: tes memakai layanan TTS asli, render MP4 nyata,
+   dan ffprobe pada folder sementara. PASS baru berarti koneksi suara dan
+   renderer PC tersebut lolos, bukan sekadar library terpasang.
+3. Restart dashboard, pilih Manager, lalu beri tugas:
+   > Buat satu Short horor fiksi 30 detik memakai make_short. Gunakan 5 adegan,
+   > total sekitar 70 kata, visual teks original, dan simpan short_01/hasil.mp4.
+   > Periksa hasil dengan inspect_media. Jangan klaim berhasil jika tool gagal.
+4. Download MP4/MP3 melalui Hasil kerja bersama. Endpoint download mengirim
+   bytes asli sebagai attachment; tidak memperlakukan video sebagai teks.
+
+Edge TTS memakai internet, tanpa API key. Koneksi layanan dapat gagal/berubah;
+status ready hanya memeriksa dependensi, bukan menjamin akses layanan. Model
+TTS tetap harus menghasilkan audio valid sebelum render. Verifikasi SSL tidak
+boleh dimatikan untuk menyembunyikan error. Supertonic belum memiliki adapter;
+audio MP3/WAV/M4A yang diekspor dari aplikasi lain dapat ditempatkan di workspace
+lalu dipakai `render_short`. Tidak ada fallback video hening yang diklaim lengkap.
+
+`make_short` membaca scenes.text sebagai narasi dan caption. Durasi target
+5–60 detik; perubahan tempo dibatasi 0.75–1.33. Narasi yang terlalu pendek/panjang
+harus direvisi. Caption bukan timing per kata. Visual bawaan berupa slideshow
+kartu teks bertema gelap; gambar lokal dapat digunakan lewat scenes.image.
+Renderer CPU memakai dua thread dan 24 fps, tanpa kebutuhan GPU. MP4 tidak
+menimpa hasil lama, hanya dipublikasikan setelah QA stream/durasi lolos.
+
+Tes media nyata dengan audio fixture sintetis: `python -m unittest discover -s tests -v`.
+Tes fixture membuktikan render/mux/QA, bukan koneksi TTS atau kualitas narasi.
